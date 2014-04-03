@@ -994,11 +994,15 @@ acl_check_unxgrp (const char *user, const char *data, const char *file,
     }
 
 die:
-    if (buf != NULL)
+    if (buf != NULL) {
         free(buf);
+        buf = NULL;
+    }
 
-    if (lname != NULL)
+    if (lname != NULL) {
         free(lname);
+        lname = NULL;
+    }
 
     return result;
 }
