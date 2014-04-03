@@ -1,0 +1,23 @@
+language: c
+
+before_install: sudo apt-get update
+
+install: sudo apt-get install make automake libtool libevent-dev libpcre3-dev php5-dev python-dev ruby-dev libmodule-build-perl
+
+compiler: gcc
+
+before_script:
+    - mkdir ci-build
+
+script:
+    - ./autogen
+    - cd ci-build
+    - ../configure --enable-perl --enable-php --enable-python --with-pcre --with-krb5
+    - make
+    - export KRB5_CONFIG=../java/k5.conf
+    - make check
+
+notifications:
+    email:
+        on_success: always
+        on_failure: always
