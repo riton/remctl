@@ -27,7 +27,8 @@
 # include <regex.h>
 #endif
 #include <sys/stat.h>
-#ifdef HAVE_GETGRNAM_R
+
+#ifdef HAVE_REMCTL_UNXGRP_ACL 
 # include <sys/types.h>
 # include <grp.h>
 # include <unistd.h>
@@ -899,7 +900,7 @@ acl_check_regex(const char *user, const char *data, const char *file,
 }
 #endif /* HAVE_REGCOMP */
 
-#ifdef HAVE_GETGRNAM_R
+#ifdef HAVE_REMCTL_UNXGRP_ACL
 static enum config_status
 acl_check_unxgrp (const char *user, const char *data, const char *file,
                 int lineno)
@@ -1001,7 +1002,7 @@ die:
 
     return result;
 }
-#endif /* HAVE_GETGRNAM_R */
+#endif /* HAVE_REMCTL_UNXGRP_ACL */
 
 /*
  * The table relating ACL scheme names to functions.  The first two ACL
@@ -1027,7 +1028,7 @@ static const struct acl_scheme schemes[] = {
 #else
     { "regex", NULL            },
 #endif
-#ifdef HAVE_GETGRNAM_R
+#ifdef HAVE_REMCTL_UNXGRP_ACL
     { "unxgrp", acl_check_unxgrp },
 #else
     { "unxgrp", NULL         },

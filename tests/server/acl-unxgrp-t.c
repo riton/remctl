@@ -94,7 +94,7 @@ main(void)
     acls[0] = "unxgrp:foobargroup";
     acls[1] = NULL;
 
-#ifdef HAVE_GETGRNAM_R
+#ifdef HAVE_REMCTL_UNXGRP_ACL
 
     /* Check behavior with empty groups */
     STACK_GETGRNAM_RESP(&emptygrp, 0);
