@@ -37,6 +37,7 @@
 
 #include <config.h>
 #include <portable/system.h>
+#include <portable/krb5.h>
 
 #include <server/internal.h>
 #include <tests/tap/basic.h>
@@ -60,6 +61,8 @@ do { \
     call_idx = v; \
 } while(0)
 
+#define VERY_LONG_PRINCIPAL 512
+
 /**
  * Dummy group definitions used to override return value of getgrnam
  */
@@ -74,10 +77,14 @@ main(void)
         NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, NULL, NULL, NULL
     };
     const char *acls[5];
+    int i = 0;
+
+    char long_principal[VERY_LONG_PRINCIPAL];
+    char expected_error[VERY_LONG_PRINCIPAL*2];
 
     memset(&getgrnam_r_responses, 0x0, sizeof(getgrnam_r_responses));
 
-    plan(11);
+    plan(13);
     if (chdir(getenv("SOURCE")) < 0)
         sysbail("can't chdir to SOURCE");
 
@@ -95,7 +102,7 @@ main(void)
     acls[0] = "unxgrp:emptygrp";
     acls[1] = NULL;
 
-    ok(!server_config_acl_permit(&rule, "someone@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "someone@IN2P3.FR"),
     "... with empty group");
 
     RESET_GETGRNAM_CALL_IDX(0);
@@ -105,20 +112,39 @@ main(void)
     RESET_GETGRNAM_CALL_IDX(0);
     acls[0] = "unxgrp:goodguys";
     acls[1] = NULL;
-    ok(server_config_acl_permit(&rule, "remi@EXAMPLE.ORG"), 
+    ok(server_config_acl_permit(&rule, "remi@IN2P3.FR"), 
     "... with user within group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
     /* ... and when it's not ... */
-    ok(!server_config_acl_permit(&rule, "someoneelse@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "someoneelse@IN2P3.FR"),
     "... with user not in group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
     /* ... and when principal is complex */
-    ok(server_config_acl_permit(&rule, "remi/admin@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "remi/admin@IN2P3.FR"),
     "... with principal with instances but main user in group");
+
+    RESET_GETGRNAM_CALL_IDX(0);
+
+    /* and when principal name is too long */
+    for (i = 0; i < VERY_LONG_PRINCIPAL - 1; i++)
+        long_principal[i] = 'A';
+    long_principal[VERY_LONG_PRINCIPAL-1] = '\0';
+
+    errors_capture();
+    ok(!server_config_acl_permit(&rule, long_principal),
+    "... with long_principal very very long");
+
+    memset(&expected_error, 0x0, sizeof(expected_error));
+    sprintf(expected_error, "TEST:0: converting krb5 principal %s to localname failed with"
+    " status %d (Insufficient space to return complete information)\n", long_principal, KRB5_CONFIG_NOTENUFSPACE);
+    expected_error[1023] = '\0';
+
+    is_string(expected_error, errors, "... match error message with principal too long");
+    errors_uncapture();
 
     RESET_GETGRNAM_CALL_IDX(0);
 
@@ -126,7 +152,7 @@ main(void)
     STACK_GETGRNAM_RESP(&goodguys, 2);
     RESET_GETGRNAM_CALL_IDX(0);
     errors_capture();
-    ok(!server_config_acl_permit(&rule, "remi@EXAMPLE.ORG"), 
+    ok(!server_config_acl_permit(&rule, "remi@IN2P3.FR"), 
     "... with getgrnam_r failing");
     is_string("TEST:0: resolving unix group 'goodguys' failed with status 2\n", errors,
               "... with getgrnam_r error handling");
@@ -140,12 +166,12 @@ main(void)
     acls[0] = "deny:unxgrp:badguys";
     acls[1] = NULL;
 
-    ok(!server_config_acl_permit(&rule, "boba-fett@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "boba-fett@IN2P3.FR"),
     "... with denied user in group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
-    ok(!server_config_acl_permit(&rule, "remi@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "remi@IN2P3.FR"),
     "... with user not in denied group but not allowed");
 
     RESET_GETGRNAM_CALL_IDX(0);
@@ -158,29 +184,29 @@ main(void)
     acls[1] = "deny:unxgrp:badguys";
     acls[2] = NULL;
 
-    ok(server_config_acl_permit(&rule, "eagle@EXAMPLE.ORG"),
+    ok(server_config_acl_permit(&rule, "eagle@IN2P3.FR"),
     "... with user within group plus a deny pragma");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
-    ok(!server_config_acl_permit(&rule, "darth-maul@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "darth-maul@IN2P3.FR"),
     "... with user in denied group plus a allow group pragma");
     
     RESET_GETGRNAM_CALL_IDX(0);
 
-    ok(!server_config_acl_permit(&rule, "anyoneelse@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "anyoneelse@IN2P3.FR"),
     "... with user neither in allowed or denied group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
 #else
     errors_capture();
-    ok(!server_config_acl_permit(&rule, "foobaruser@EXAMPLE.ORG"),
+    ok(!server_config_acl_permit(&rule, "foobaruser@IN2P3.FR"),
        "UNXGRP");
     is_string("TEST:0: ACL scheme 'unxgrp' is not supported\n", errors,
     "...with not supported error");
     errors_uncapture();
-    skip_block(9, "UNXGRP support not configured");
+    skip_block(11, "UNXGRP support not configured");
 #endif
 
     return 0;
