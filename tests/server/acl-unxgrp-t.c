@@ -84,7 +84,8 @@ main(void)
 
     memset(&getgrnam_r_responses, 0x0, sizeof(getgrnam_r_responses));
 
-    plan(13);
+    plan(14);
+
     if (chdir(getenv("SOURCE")) < 0)
         sysbail("can't chdir to SOURCE");
 
@@ -96,13 +97,22 @@ main(void)
 
 #ifdef HAVE_REMCTL_UNXGRP_ACL
 
+    /*
+     * Note(remi):
+     * Those tests requires a krb5 configuration with realm EXAMPLE.ORG
+     * defined.
+     *
+     * If not, krb5_aname_to_localname will refuse to resolve a principal
+     * from an unknown REALM to a local user name (at least with Heimdal libs).
+     */
+
     /* Check behavior with empty groups */
     STACK_GETGRNAM_RESP(&emptygrp, 0);
     RESET_GETGRNAM_CALL_IDX(0);
     acls[0] = "unxgrp:emptygrp";
     acls[1] = NULL;
 
-    ok(!server_config_acl_permit(&rule, "someone@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "someone@EXAMPLE.ORG"),
     "... with empty group");
 
     RESET_GETGRNAM_CALL_IDX(0);
@@ -112,19 +122,19 @@ main(void)
     RESET_GETGRNAM_CALL_IDX(0);
     acls[0] = "unxgrp:goodguys";
     acls[1] = NULL;
-    ok(server_config_acl_permit(&rule, "remi@IN2P3.FR"), 
+    ok(server_config_acl_permit(&rule, "remi@EXAMPLE.ORG"), 
     "... with user within group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
     /* ... and when it's not ... */
-    ok(!server_config_acl_permit(&rule, "someoneelse@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "someoneelse@EXAMPLE.ORG"),
     "... with user not in group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
     /* ... and when principal is complex */
-    ok(!server_config_acl_permit(&rule, "remi/admin@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "remi/admin@EXAMPLE.ORG"),
     "... with principal with instances but main user in group");
 
     RESET_GETGRNAM_CALL_IDX(0);
@@ -148,11 +158,17 @@ main(void)
 
     RESET_GETGRNAM_CALL_IDX(0);
 
+    /* Check when user comes from a not supported REALM */
+    ok(!server_config_acl_permit(&rule, "eagle@ANY.OTHER.REALM.FR"),
+    "... with user from not supported REALM");
+
+    RESET_GETGRNAM_CALL_IDX(0);
+
     /* Check behavior when syscall fails */
     STACK_GETGRNAM_RESP(&goodguys, 2);
     RESET_GETGRNAM_CALL_IDX(0);
     errors_capture();
-    ok(!server_config_acl_permit(&rule, "remi@IN2P3.FR"), 
+    ok(!server_config_acl_permit(&rule, "remi@EXAMPLE.ORG"), 
     "... with getgrnam_r failing");
     is_string("TEST:0: resolving unix group 'goodguys' failed with status 2\n", errors,
               "... with getgrnam_r error handling");
@@ -166,12 +182,12 @@ main(void)
     acls[0] = "deny:unxgrp:badguys";
     acls[1] = NULL;
 
-    ok(!server_config_acl_permit(&rule, "boba-fett@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "boba-fett@EXAMPLE.ORG"),
     "... with denied user in group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
-    ok(!server_config_acl_permit(&rule, "remi@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "remi@EXAMPLE.ORG"),
     "... with user not in denied group but not allowed");
 
     RESET_GETGRNAM_CALL_IDX(0);
@@ -184,29 +200,29 @@ main(void)
     acls[1] = "deny:unxgrp:badguys";
     acls[2] = NULL;
 
-    ok(server_config_acl_permit(&rule, "eagle@IN2P3.FR"),
+    ok(server_config_acl_permit(&rule, "eagle@EXAMPLE.ORG"),
     "... with user within group plus a deny pragma");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
-    ok(!server_config_acl_permit(&rule, "darth-maul@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "darth-maul@EXAMPLE.ORG"),
     "... with user in denied group plus a allow group pragma");
     
     RESET_GETGRNAM_CALL_IDX(0);
 
-    ok(!server_config_acl_permit(&rule, "anyoneelse@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "anyoneelse@EXAMPLE.ORG"),
     "... with user neither in allowed or denied group");
 
     RESET_GETGRNAM_CALL_IDX(0);
 
 #else
     errors_capture();
-    ok(!server_config_acl_permit(&rule, "foobaruser@IN2P3.FR"),
+    ok(!server_config_acl_permit(&rule, "foobaruser@EXAMPLE.ORG"),
        "UNXGRP");
     is_string("TEST:0: ACL scheme 'unxgrp' is not supported\n", errors,
     "...with not supported error");
     errors_uncapture();
-    skip_block(11, "UNXGRP support not configured");
+    skip_block(12, "UNXGRP support not configured");
 #endif
 
     return 0;
